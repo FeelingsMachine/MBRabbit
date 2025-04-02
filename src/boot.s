@@ -3,8 +3,7 @@
 
 .section .text
 # =============================================================================
-# Boot Sector Program Entry Point
-# This program provides basic input handling and character display functionality
+# MBRabbit
 # =============================================================================
 
 _start:
