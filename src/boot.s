@@ -2,98 +2,133 @@
 .globl _start
 
 .section .text
+# =============================================================================
+# Boot Sector Program Entry Point
+# This program provides basic input handling and character display functionality
+# =============================================================================
+
 _start:
-  # Cleanup segments
-  xorw  %ax,      %ax
-  movw  %ax,      %ds
-  movw  %ax,      %es
+  # Initialize segment registers
+  xorw    %ax,        %ax
+  movw    %ax,        %ds
+  movw    %ax,        %es
 
-  # Print welcome message
-  movw  $lword,   %si
-  call  strprint
+  # Display welcome message
+  movw    $lword,     %si
+  call    strprint
 
+# =============================================================================
+# Main Input Loop
+# =============================================================================
 input_loop:
-  call  get_key
-  call  chr_event_handler
-  jmp   input_loop
+  call    get_key
+  call    chr_event_handler
+  jmp     input_loop
 
+# =============================================================================
+# Character Event Handler
+# Processes keyboard input and handles special characters
+# Input: AL - ASCII character
+# Output: AH - Status (0 success, -1 error)
+# =============================================================================
 chr_event_handler:
-  # The event handler is responsible for parsing the input and handling the events
-  # It is a WIP, eventually I will optimize and add more events
+  # Check for special characters
+  cmpb    $0x0D,      %al     # Check for Enter key
+  je      .spchr_newline
+  cmpb    $0x08,      %al     # Check for Backspace
+  je      .spchr_backspace
 
-  # NOTE: I can definitely make this more efficient by using strcmp
-  #         Just like, chain every character in a single null terminated string
-  cmpb  $0x0D,    %al
-  je    .spchr_newline
-  cmpb  $0x08,    %al
-  je    .spchr_backspace
+  call    chrprint
+  jmp     .stat_error         # No special character matched
 
-  call  chrprint
-  jmp   .stat_error     # No matches found
-
-# TODO: The special character events could be much better optimized
+# =============================================================================
+# Special Character Handlers
+# =============================================================================
 .spchr_newline:
-  movb  $0x0A,    %al
-  call chrprint
-  movb  $0x0D,    %al
-  call chrprint
-  call  chrprint
-
-  jmp   .stat_sucess
+  movb    $0x0A,      %al     # Line feed
+  call    chrprint
+  movb    $0x0D,      %al     # Carriage return
+  call    chrprint
+  call    chrprint
+  jmp     .stat_sucess
 
 .spchr_backspace:
-  movw  $.spchr_table, %si
-  call  strprint
+  movw    $.spchr_table, %si
+  call    strprint
+  jmp     .stat_sucess
 
-  jmp .stat_sucess
+# =============================================================================
+# Utility Functions
+# =============================================================================
 
-.spchr_table: # Subject to changes 
-  # Backspace procedure
-  .byte 0x08, 0x20, 0x08, 0x00  # BS, WS, BS, NULL
-
+# Get keyboard input
+# Output: AL - ASCII character
 get_key:
-  movb  $0x00,    %ah
-  int   $0x16
+  movb    $0x00,      %ah     # BIOS keyboard service
+  int     $0x16
   ret
 
+# Print single character
+# Input: AL - Character to print
 chrprint:
-  movb  $0x0E,    %ah   # Teletype output
-  movw  $0x0007,  %bx   # Page number, foreground colour
-  int   $0x10
+  movb    $0x0E,      %ah     # BIOS teletype output
+  movw    $0x0007,    %bx     # Page 0, light gray on black
+  int     $0x10
   ret
 
+# Store character in buffer
+# Input: AL - Character to store
+chrstore:
+  # TODO:
+
+# Print null-terminated string
+# Input: SI - Pointer to string
 strprint:
-  lodsb                 # Load byte from [DS:SI] into AL
-  test  %al,      %al   # Check for null terminator
-  jz    generic_sucess  # If zero, return
-  movb  $0x0E,    %ah   # Otherwise print character
-  int   $0x10
-  jmp   strprint        # Continue loop
+  lodsb                       # Load byte from [DS:SI] into AL
+  test    %al,        %al     # Check for null terminator
+  jz      generic_sucess      # If zero, return
+  movb    $0x0E,      %ah     # BIOS teletype output
+  int     $0x10
+  jmp     strprint            # Continue loop
 
-strcmp:  # Untested
+# Compare strings (Work in Progress)
+# Input: SI - First string
+#        BL - Second string
+strcmp:
   lodsb
-  testb   %al,    %al   # Null check
+  testb   %al,        %al     # Check for end of first string
   jz      .stat_error 
-  test    %bl,    %bl
+  test    %bl,        %bl     # Check for end of second string
   jz      .stat_error 
 
-  cmpb    %al,    %bl   # al == bl
+  cmpb    %al,        %bl     # Compare characters
   je      generic_sucess
-  jmp strcmp
+  jmp     strcmp
 
+# =============================================================================
+# Status Return Functions
+# =============================================================================
 generic_sucess:
   ret
 
 .stat_sucess:
-  movb    $0,     %ah
+  movb    $0,         %ah
   ret
 
 .stat_error:
-  movb    $-1,    %ah
+  movb    $-1,        %ah
   ret
 
-lword: .asciz "Hello, World!\r\n"
+# =============================================================================
+# Data Section
+# =============================================================================
+.spchr_table:                   # Special character sequences
+  .byte 0x08, 0x20, 0x08, 0x00  # Backspace sequence: BS, Space, BS, NULL
 
-.fill 510-(.-_start), 1, 0
-.word 0xaa55
+lword: .asciz "Hello, World!\r\n"
+buffer: .space 8                # Input buffer (8 characters)
+
+# Boot sector signature
+.fill 510-(.-_start), 1, 0      # Pad to 510 bytes
+.word 0xaa55                    # Boot signature
 

@@ -63,4 +63,4 @@ clean:
 	@echo -e "Cleaning up..." | lolcat $(LOLCATFUN)
 	@rm -f $(BUILD_DIR)*.o $(BUILD_DIR)*.bin
 
-.PHONY: all fun sad run clean
+.PHONY: all run run-debug run-debug-verbose clean
